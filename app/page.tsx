@@ -88,18 +88,6 @@ export default function FridayNightFunkinHome() {
             RANKINGS
           </Button>
         </div>
-
-        {/* Bottom info */}
-        <div className="mt-16 text-center animate-in fade-in duration-700 delay-500">
-          <p className="text-muted-foreground text-sm font-bold tracking-wide">
-            PRESIONA CUALQUIER BOTÓN PARA COMENZAR
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-            <div className="w-3 h-3 bg-secondary rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
-            <div className="w-3 h-3 bg-accent rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
-          </div>
-        </div>
       </div>
 
       {/* Decorative corner elements */}
