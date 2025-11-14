@@ -1,7 +1,0 @@
-{
-  "/boss-select/page": "app/boss-select/page.js",
-  "/game-mode/page": "app/game-mode/page.js",
-  "/lobby/page": "app/lobby/page.js",
-  "/page": "app/page.js",
-  "/waiting-room/page": "app/waiting-room/page.js"
-}
