@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, DoorOpen, UserPlus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { ArrowLeft, DoorOpen, UserPlus } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function LobbyPage() {
   const router = useRouter()
@@ -18,7 +18,12 @@ export default function LobbyPage() {
       </div>
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12">
-        <Button variant="ghost" size="lg" className="absolute top-8 left-8 text-xl font-black" onClick={() => router.push('/')}>
+        <Button
+          variant="ghost"
+          size="lg"
+          className="absolute top-8 left-8 text-xl font-black"
+          onClick={() => router.push("/")}
+        >
           <ArrowLeft className="w-6 h-6 mr-2" />
           VOLVER
         </Button>
@@ -32,7 +37,7 @@ export default function LobbyPage() {
           <Button
             size="lg"
             className="h-24 text-2xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-2xl transition-all duration-300 hover:scale-105"
-            onClick={() => router.push('/game-mode')}
+            onClick={() => router.push("/game-mode")}
           >
             <DoorOpen className="w-10 h-10 mr-3" />
             CREAR SALA
@@ -41,6 +46,7 @@ export default function LobbyPage() {
           <Button
             size="lg"
             className="h-24 text-2xl font-black tracking-wider bg-secondary hover:bg-secondary/90 text-secondary-foreground border-4 border-secondary-foreground/20 shadow-2xl transition-all duration-300 hover:scale-105"
+            onClick={() => router.push("/join-room")}
           >
             <UserPlus className="w-10 h-10 mr-3" />
             UNIRSE A SALA
