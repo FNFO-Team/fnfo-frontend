@@ -25,7 +25,7 @@ export default function GameModePage() {
 
         <div className="text-center mb-12 animate-in fade-in slide-in-from-top duration-500">
           <h2 className="text-5xl md:text-7xl font-black text-primary tracking-tighter mb-4">MODO DE JUEGO</h2>
-          <p className="text-xl text-muted-foreground font-bold">Selecciona cómo quieres jugar</p>
+          <p className="text-xl text-muted-foreground font-bold">Selecciona el modo de juego</p>
         </div>
 
         <div className="flex flex-col gap-8 w-full max-w-md animate-in fade-in slide-in-from-bottom duration-500">
