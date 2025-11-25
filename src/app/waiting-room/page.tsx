@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Users, Play, Copy, Check } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { ArrowLeft, Users, Play, Copy, Check } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { RoomChat } from "@/components/chat/room-chat"
 
 function generateRoomId(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -12,8 +13,8 @@ function generateRoomId(): string {
 export default function WaitingRoomPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const mode = searchParams.get('mode')
-  const item = searchParams.get('item')
+  const mode = searchParams.get("mode")
+  const item = searchParams.get("item")
 
   const [roomId] = useState<string>(generateRoomId())
   const [copiedRoomId, setCopiedRoomId] = useState(false)
@@ -34,10 +35,10 @@ export default function WaitingRoomPage() {
   }, [players.length])
 
   const goBack = () => {
-    if (mode === 'coop') {
-      router.push('/boss-select')
+    if (mode === "coop") {
+      router.push("/boss-select")
     } else {
-      router.push('/track-select')
+      router.push("/track-select")
     }
   }
 
@@ -95,8 +96,8 @@ export default function WaitingRoomPage() {
           </div>
         </div>
 
-        {/* Players List */}
-        <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom duration-500">
+        <div className="w-full max-w-6xl grid md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom duration-500">
+          {/* Players List */}
           <div className="bg-card border-4 border-secondary/30 rounded-lg p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
@@ -158,6 +159,10 @@ export default function WaitingRoomPage() {
               <Play className="w-6 h-6 mr-2" />
               {players.length < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
             </Button>
+          </div>
+
+          <div className="h-full min-h-[600px]">
+            <RoomChat currentUserId={1} currentUsername="Jugador 1 (Tú)" />
           </div>
         </div>
 
