@@ -3,19 +3,34 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Music, Users, ArrowRight } from "lucide-react"
+import { Music, Users, ArrowRight, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (username && email) {
-      // Store user info in localStorage
-      localStorage.setItem("fnf_user", JSON.stringify({ username, email }))
+      setIsLoading(true)
+      
+      // Usar el AuthContext para hacer login
+      login(username, email)
+      
+      // Pequeño delay para asegurar que se guarde
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       router.push("/")
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && username && email) {
+      handleLogin()
     }
   }
 
@@ -65,7 +80,9 @@ export default function LoginPage() {
                 placeholder="Ingresa tu nombre"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onKeyPress={handleKeyPress}
                 className="h-14 text-lg font-bold border-2 border-primary/50 focus:border-primary"
+                disabled={isLoading}
               />
             </div>
 
@@ -76,7 +93,9 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onKeyPress={handleKeyPress}
                 className="h-14 text-lg font-bold border-2 border-secondary/50 focus:border-secondary"
+                disabled={isLoading}
               />
             </div>
 
@@ -84,10 +103,19 @@ export default function LoginPage() {
               size="lg"
               className="w-full h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
               onClick={handleLogin}
-              disabled={!username || !email}
+              disabled={!username || !email || isLoading}
             >
-              ENTRAR AL JUEGO
-              <ArrowRight className="w-6 h-6 ml-2" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                  ENTRANDO...
+                </>
+              ) : (
+                <>
+                  ENTRAR AL JUEGO
+                  <ArrowRight className="w-6 h-6 ml-2" />
+                </>
+              )}
             </Button>
           </div>
 
