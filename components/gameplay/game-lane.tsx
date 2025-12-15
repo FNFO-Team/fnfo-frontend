@@ -39,16 +39,8 @@ export function GameLane({
   const laneNotes = notes.filter((note) => note.lane === laneIndex)
 
   return (
-    <div className="relative flex-1 h-full flex flex-col justify-end items-center">
-      {/* Fondo del carril con líneas guía */}
-      <div className="absolute inset-0 border-x border-white/10">
-        {/* Líneas de timing para ayuda visual */}
-        <div className="absolute bottom-20 left-0 right-0 h-px bg-white/5" />
-        <div className="absolute bottom-24 left-0 right-0 h-px bg-white/5" />
-        <div className="absolute bottom-28 left-0 right-0 h-px bg-white/5" />
-      </div>
-
-      {/* Contenedor de notas animadas */}
+    <div className="relative flex-1 h-full bg-gradient-to-b from-transparent to-black/30">
+      {/* Contenedor de notas animadas - ocupa todo el espacio disponible */}
       <div className="absolute inset-0 overflow-hidden">
         {laneNotes.map((note) => (
           <AnimatedNote
@@ -63,8 +55,15 @@ export function GameLane({
         ))}
       </div>
 
-      {/* Receptor de tecla (hitbox) en la parte inferior */}
-      <div className="relative z-10 mb-4">
+      {/* Líneas guía de timing */}
+      <div className="absolute inset-0 pointer-events-none border-x border-white/10">
+        <div className="absolute bottom-20 left-0 right-0 h-px bg-white/5" />
+        <div className="absolute bottom-24 left-0 right-0 h-px bg-white/5" />
+        <div className="absolute bottom-28 left-0 right-0 h-px bg-white/5" />
+      </div>
+
+      {/* Receptor de tecla (hitbox) - directamente en el fondo */}
+      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 z-10">
         <KeyReceptor
           keyLabel={keyLabel}
           isPressed={isPressed}

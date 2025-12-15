@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { motion } from "framer-motion"
 import { PlayerBoard } from "@/components/gameplay/player-board"
 import { FeedbackOverlay } from "@/components/gameplay/feedback-overlay"
 import { GameplayEngine, generateSampleChart, type HitResult } from "@/lib/gameplay-engine"
@@ -32,6 +33,7 @@ export default function GameplayPage() {
   const searchParams = useSearchParams()
   const mode = searchParams.get("mode") || "pvp"
   const track = searchParams.get("track") || "Tutorial"
+  const roomId = searchParams.get("roomId") || "N/A"
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const engineRef = useRef<GameplayEngine | null>(null)
@@ -56,31 +58,180 @@ export default function GameplayPage() {
     ["d", 3],
   ]))
 
-  // Estado del jugador local
-  const [localPlayer, setLocalPlayer] = useState<PlayerState>({
-    id: 1,
-    name: "Jugador 1 (Tú)",
-    score: 0,
-    combo: 0,
-    maxCombo: 0,
-    perfectCount: 0,
-    goodCount: 0,
-    missCount: 0,
-    keys: ["ArrowLeft", "ArrowDown", "ArrowUp", "ArrowRight"], // Cambiado a teclas de flecha
+  // Estado del jugador local - Inicializar desde sessionStorage
+  const [localPlayer, setLocalPlayer] = useState<PlayerState>(() => {
+    if (typeof window !== "undefined") {
+      const players = sessionStorage.getItem("gamePlayers")
+      if (players) {
+        const parsedPlayers = JSON.parse(players)
+        const player = parsedPlayers[0] || {
+          id: 1,
+          name: "Jugador 1 (Tú)",
+          score: 0,
+          combo: 0,
+          maxCombo: 0,
+          perfectCount: 0,
+          goodCount: 0,
+          missCount: 0,
+          ready: true,
+        }
+        return {
+          id: player.id,
+          name: player.name,
+          score: 0,
+          combo: 0,
+          maxCombo: 0,
+          perfectCount: 0,
+          goodCount: 0,
+          missCount: 0,
+          keys: ["ArrowLeft", "ArrowDown", "ArrowUp", "ArrowRight"],
+        }
+      }
+    }
+    return {
+      id: 1,
+      name: "Jugador 1 (Tú)",
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+      perfectCount: 0,
+      goodCount: 0,
+      missCount: 0,
+      keys: ["ArrowLeft", "ArrowDown", "ArrowUp", "ArrowRight"],
+    }
   })
 
-  // Estado del oponente (simulado)
-  const [opponent, setOpponent] = useState<PlayerState>({
-    id: 2,
-    name: "Jugador 2",
-    score: 0,
-    combo: 0,
-    maxCombo: 0,
-    perfectCount: 0,
-    goodCount: 0,
-    missCount: 0,
-    keys: ["A", "S", "W", "D"],
+  // Estado del oponente - Inicializar desde sessionStorage
+  const [opponent, setOpponent] = useState<PlayerState>(() => {
+    if (typeof window !== "undefined") {
+      const players = sessionStorage.getItem("gamePlayers")
+      if (players) {
+        const parsedPlayers = JSON.parse(players)
+        const player = parsedPlayers[1] || {
+          id: 2,
+          name: "Jugador 2",
+          score: 0,
+          combo: 0,
+          maxCombo: 0,
+          perfectCount: 0,
+          goodCount: 0,
+          missCount: 0,
+          ready: false,
+        }
+        return {
+          id: player.id,
+          name: player.name,
+          score: 0,
+          combo: 0,
+          maxCombo: 0,
+          perfectCount: 0,
+          goodCount: 0,
+          missCount: 0,
+          keys: ["A", "S", "W", "D"],
+        }
+      }
+    }
+    return {
+      id: 2,
+      name: "Jugador 2",
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+      perfectCount: 0,
+      goodCount: 0,
+      missCount: 0,
+      keys: ["A", "S", "W", "D"],
+    }
   })
+
+  // Definir sendResultsToBackend ANTES de usarlo en useEffect
+  const sendResultsToBackend = useCallback(async () => {
+    if (!engineRef.current) {
+      console.error("Engine no disponible")
+      return
+    }
+
+    const stats = engineRef.current.getGameStats()
+    const accuracy = stats.totalNotes > 0 ? (stats.hitNotes / stats.totalNotes) * 100 : 0
+
+    const results = {
+      chartId: track || "sample",
+      difficulty: "normal",
+      score: localPlayer.score,
+      combo: localPlayer.combo,
+      maxCombo: localPlayer.maxCombo,
+      accuracy: accuracy,
+      perfect: localPlayer.perfectCount,
+      good: localPlayer.goodCount,
+      miss: localPlayer.missCount,
+      totalNotes: stats.totalNotes,
+      duration: currentTime * 1000,
+      timestamp: new Date().toISOString(),
+    }
+
+    console.log("Enviando resultados al backend:", results)
+
+    try {
+      const response = await submitGameResult(results)
+      console.log("Respuesta del backend:", response)
+      
+      // Guardar datos del oponente para mostrar en resultados
+      localStorage.setItem("lastOpponent", JSON.stringify({
+        id: opponent.id,
+        name: opponent.name,
+        score: opponent.score,
+        maxCombo: opponent.maxCombo,
+        accuracy: opponent.perfectCount + opponent.goodCount > 0 
+          ? ((opponent.perfectCount + opponent.goodCount * 0.5) / (opponent.perfectCount + opponent.goodCount + opponent.missCount)) * 100 
+          : 0,
+        perfect: opponent.perfectCount,
+        good: opponent.goodCount,
+        miss: opponent.missCount,
+      }))
+      
+      if (response.success) {
+        console.log("Resultado guardado correctamente, redirigiendo...")
+        // Redirigir a pantalla de resultados
+        router.push("/results")
+      } else {
+        console.error("Error al guardar resultado:", response.message)
+        // Aún así guardar en localStorage para no perder datos
+        localStorage.setItem("lastGameResult", JSON.stringify({
+          chartId: results.chartId,
+          difficulty: results.difficulty,
+          score: results.score,
+          combo: results.combo,
+          maxCombo: results.maxCombo,
+          accuracy: results.accuracy,
+          perfect: results.perfect,
+          good: results.good,
+          miss: results.miss,
+          totalNotes: results.totalNotes,
+          duration: results.duration,
+          timestamp: results.timestamp,
+        }))
+        router.push("/results")
+      }
+    } catch (err) {
+      console.error("Error enviando resultados:", err)
+      // Guardar en localStorage aunque haya error
+      localStorage.setItem("lastGameResult", JSON.stringify({
+        chartId: results.chartId,
+        difficulty: results.difficulty,
+        score: results.score,
+        combo: results.combo,
+        maxCombo: results.maxCombo,
+        accuracy: results.accuracy,
+        perfect: results.perfect,
+        good: results.good,
+        miss: results.miss,
+        totalNotes: results.totalNotes,
+        duration: results.duration,
+        timestamp: results.timestamp,
+      }))
+      router.push("/results")
+    }
+  }, [localPlayer, track, currentTime, router])
 
   // Inicializar el motor de juego
   useEffect(() => {
@@ -112,6 +263,7 @@ export default function GameplayPage() {
     const updateTime = () => setCurrentTime(audio.currentTime)
     const updateDuration = () => setDuration(audio.duration)
     const handleEnded = () => {
+      console.log("Audio terminó, enviando resultados...")
       setIsPlaying(false)
       sendResultsToBackend()
     }
@@ -125,7 +277,7 @@ export default function GameplayPage() {
       audio.removeEventListener("loadedmetadata", updateDuration)
       audio.removeEventListener("ended", handleEnded)
     }
-  }, [])
+  }, [sendResultsToBackend])
 
   // Force re-render para animaciones suaves (60fps)
   useEffect(() => {
@@ -146,6 +298,39 @@ export default function GameplayPage() {
       cancelAnimationFrame(animationFrameId)
     }
   }, [isPlaying])
+
+  // Simular al oponente ganando puntos durante el gameplay
+  useEffect(() => {
+    if (!isPlaying || mode !== "pvp") return
+
+    const interval = setInterval(() => {
+      // Simular que el oponente golpea notas cada 500-1000ms
+      const random = Math.random()
+      if (random > 0.3) {
+        // 70% de probabilidad de golpear una nota
+        const hitType = random > 0.8 ? "good" : "perfect" // 20% good, 50% perfect
+        const points = hitType === "perfect" ? 100 : 50
+
+        setOpponent((prev) => ({
+          ...prev,
+          score: prev.score + points,
+          combo: prev.combo + 1,
+          maxCombo: Math.max(prev.maxCombo, prev.combo + 1),
+          perfectCount: hitType === "perfect" ? prev.perfectCount + 1 : prev.perfectCount,
+          goodCount: hitType === "good" ? prev.goodCount + 1 : prev.goodCount,
+        }))
+      } else {
+        // 30% de probabilidad de fallar
+        setOpponent((prev) => ({
+          ...prev,
+          combo: 0,
+          missCount: prev.missCount + 1,
+        }))
+      }
+    }, 500 + Math.random() * 500)
+
+    return () => clearInterval(interval)
+  }, [isPlaying, mode])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -231,57 +416,32 @@ export default function GameplayPage() {
     })
   }, [])
 
-  const togglePlayPause = () => {
-    if (!audioRef.current) return
-
-    if (isPlaying) {
-      audioRef.current.pause()
-    } else {
-      audioRef.current.play()
+  const togglePlayPause = async () => {
+    if (!audioRef.current) {
+      console.error("Audio ref no disponible")
+      return
     }
-    setIsPlaying(!isPlaying)
-  }
-
-  const sendResultsToBackend = async () => {
-    if (!engineRef.current) return
-
-    const stats = engineRef.current.getGameStats()
-    const accuracy = stats.totalNotes > 0 ? (stats.hitNotes / stats.totalNotes) * 100 : 0
-
-    const results = {
-      chartId: track || "sample",
-      difficulty: "normal",
-      score: localPlayer.score,
-      combo: localPlayer.combo,
-      maxCombo: localPlayer.maxCombo,
-      accuracy: accuracy,
-      perfect: localPlayer.perfectCount,
-      good: localPlayer.goodCount,
-      miss: localPlayer.missCount,
-      totalNotes: stats.totalNotes,
-      duration: currentTime * 1000,
-      timestamp: new Date().toISOString(),
-    }
-
-    console.log("Enviando resultados al backend:", results)
 
     try {
-      const response = await submitGameResult(results)
-      if (response.success) {
-        console.log("Resultado guardado correctamente")
+      if (isPlaying) {
+        audioRef.current.pause()
+        setIsPlaying(false)
       } else {
-        console.error("Error al guardar resultado:", response.message)
+        // Asegurar que el audio tenga un src antes de reproducir
+        if (!audioRef.current.src) {
+          console.error("Audio src no establecido")
+          return
+        }
+        
+        const playPromise = audioRef.current.play()
+        if (playPromise !== undefined) {
+          await playPromise
+          setIsPlaying(true)
+        }
       }
     } catch (err) {
-      console.error("Error enviando resultados:", err)
+      console.error("Error al reproducir audio:", err)
     }
-
-    // Redirigir a pantalla de resultados
-    setTimeout(() => {
-      router.push(
-        `/results?score=${localPlayer.score}&perfect=${localPlayer.perfectCount}&good=${localPlayer.goodCount}&miss=${localPlayer.missCount}&combo=${localPlayer.maxCombo}&accuracy=${accuracy.toFixed(1)}`,
-      )
-    }, 1000)
   }
 
   const formatTime = (time: number) => {
@@ -319,10 +479,32 @@ export default function GameplayPage() {
           {/* Barra de progreso de la canción */}
           <div className="space-y-2">
             <div className="relative w-full h-6 bg-black/40 rounded-full overflow-hidden border-2 border-primary/30">
-              <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary via-secondary to-accent transition-all duration-300 shadow-[0_0_20px_rgba(236,72,153,0.6)]"
-                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+              <motion.div
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary via-secondary to-accent shadow-[0_0_20px_rgba(236,72,153,0.6)]"
+                initial={{ width: "0%" }}
+                animate={{ 
+                  width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                }}
+                transition={{ 
+                  duration: 0.1,
+                  ease: "linear"
+                }}
               />
+              {/* Indicador de posición con brillo pulsante */}
+              {duration > 0 && currentTime > 0 && (
+                <motion.div
+                  className="absolute top-0 h-full w-1 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
+                  style={{ left: `${(currentTime / duration) * 100}%` }}
+                  animate={{
+                    opacity: [0.6, 1, 0.6],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+              )}
             </div>
             <div className="flex justify-between text-sm font-bold text-muted-foreground px-2">
               <span>{formatTime(currentTime)}</span>

@@ -15,11 +15,17 @@ export default function WaitingRoomPage() {
   const searchParams = useSearchParams()
   const mode = searchParams.get("mode")
   const item = searchParams.get("item")
+  const paramRoomId = searchParams.get("roomId")
 
-  const [roomId] = useState<string>(generateRoomId())
+  // Si es "join", usar el roomId del parámetro; si es crear, generar uno nuevo
+  const [roomId] = useState<string>(paramRoomId || generateRoomId())
   const [copiedRoomId, setCopiedRoomId] = useState(false)
+  
+  // Si es "join", el usuario actual es "Tú" (quien se unió)
+  const isJoining = mode === "join"
+  
   const [players, setPlayers] = useState<Array<{ id: number; name: string; ready: boolean }>>([
-    { id: 1, name: "Jugador 1 (Tú)", ready: true },
+    { id: 1, name: isJoining ? "Jugador 1 (Creador)" : "Jugador 1 (Tú)", ready: !isJoining },
   ])
 
   useEffect(() => {
@@ -153,7 +159,13 @@ export default function WaitingRoomPage() {
               className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
               disabled={players.length < 2}
               onClick={() => {
-                router.push(`/gameplay?mode=${mode}&track=${item}`)
+                // Guardar info de los jugadores en sessionStorage para que gameplay los lea
+                sessionStorage.setItem("gamePlayers", JSON.stringify(players))
+                sessionStorage.setItem("gameMode", mode || "pvp")
+                sessionStorage.setItem("gameTrack", item || "Tutorial")
+                sessionStorage.setItem("roomId", roomId)
+                
+                router.push(`/gameplay?mode=${mode}&track=${item}&roomId=${roomId}`)
               }}
             >
               <Play className="w-6 h-6 mr-2" />
