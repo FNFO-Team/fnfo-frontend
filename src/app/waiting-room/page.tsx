@@ -74,7 +74,6 @@ export default function WaitingRoomPage() {
             {mode === "coop" ? "Modo Cooperativo" : "Modo PvP"} - {item}
           </p>
 
-          {/* Room ID Section */}
           <div className="flex items-center justify-center gap-3 bg-card border-4 border-primary/30 rounded-lg p-4 max-w-md mx-auto">
             <div className="flex flex-col items-start">
               <span className="text-xs text-muted-foreground font-bold">ID DE SALA</span>
@@ -134,7 +133,6 @@ export default function WaitingRoomPage() {
                 </div>
               ))}
 
-              {/* Empty slots */}
               {Array.from({ length: 4 - players.length }).map((_, index) => (
                 <div
                   key={`empty-${index}`}
@@ -150,11 +148,13 @@ export default function WaitingRoomPage() {
               ))}
             </div>
 
-            {/* Start Game Button */}
             <Button
               size="lg"
               className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
               disabled={players.length < 2}
+              onClick={() => {
+                router.push(`/gameplay?mode=${mode}&track=${item}`)
+              }}
             >
               <Play className="w-6 h-6 mr-2" />
               {players.length < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
@@ -166,7 +166,6 @@ export default function WaitingRoomPage() {
           </div>
         </div>
 
-        {/* Waiting indicator */}
         <div className="mt-8 flex items-center justify-center gap-2">
           <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
           <div className="w-3 h-3 bg-secondary rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
