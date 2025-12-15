@@ -54,8 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = (username: string, email?: string) => {
-    const u: User = { 
-      username, 
+    const u: User = {
+      username,
       email,
       nickname: username // Alias para compatibilidad con matchmaking
     }
@@ -104,6 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STORAGE_KEY)
     } catch (e) {
       console.error('Error removing user from localStorage:', e)
+    }
+    try {
       await firebaseSignOut(auth);
     } catch (error) {
       console.error('Error signing out:', error);
