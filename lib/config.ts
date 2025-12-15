@@ -1,22 +1,13 @@
-// Configuración de servicios backend
-
 export const config = {
-  // Matchmaking Service
   matchmaking: {
-    url: process.env.NEXT_PUBLIC_MATCHMAKING_URL || 'http://localhost:8082',
-    apiPrefix: '/api/matchmaking',
+    url: 'https://matchmaking-service.livelyocean-46fb9704.brazilsouth.azurecontainerapps.io',
+    apiPrefix: '/api/matchmaking'
   },
-  
-  // Chat Service
   chat: {
-    url: process.env.NEXT_PUBLIC_CHAT_URL || 'http://localhost:3001',
+    url: 'https://chat-service.livelyocean-46fb9704.brazilsouth.azurecontainerapps.io'
   },
-  
-  // User Profile Service
   userProfile: {
-    url: process.env.NEXT_PUBLIC_USER_PROFILE_URL || 'http://localhost:8080',
-    apiPrefix: '/api/profiles',
-  },
+    url: 'https://fnfo-userprofile-service-d2gzaqg5hwgphxab.brazilsouth-01.azurewebsites.net', 
+    apiPrefix: '/api/profiles'
+  }
 }
-
-export default config

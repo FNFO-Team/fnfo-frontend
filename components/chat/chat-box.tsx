@@ -9,12 +9,12 @@ export interface Message {
   username: string
   message: string
   timestamp: Date
-  userId: number
+  oduserId: string
 }
 
 interface ChatBoxProps {
   messages: Message[]
-  currentUserId: number
+  currentUserId: string
 }
 
 export function ChatBox({ messages, currentUserId }: ChatBoxProps) {
@@ -42,7 +42,7 @@ export function ChatBox({ messages, currentUserId }: ChatBoxProps) {
             username={msg.username}
             message={msg.message}
             timestamp={msg.timestamp}
-            isOwnMessage={msg.userId === currentUserId}
+            isOwnMessage={msg.oduserId === currentUserId}
           />
         ))
       )}
