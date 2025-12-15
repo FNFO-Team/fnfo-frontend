@@ -2,38 +2,59 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Play, Trophy, BarChart3, Music, Users, SettingsIcon } from "lucide-react"
+import { Play, Trophy, BarChart3, Music, Users, SettingsIcon, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuthContext } from "@/context/AuthContext"
 
 export default function FridayNightFunkinHome() {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const router = useRouter()
+  const { isAuthenticated, isInitialized, logout } = useAuthContext()
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const user = localStorage.getItem("fnf_user")
-    if (!user) {
+    if (isInitialized && !isAuthenticated) {
       router.push("/login")
-    } else {
-      setIsLoggedIn(true)
     }
-  }, [router])
+  }, [isAuthenticated, isInitialized, router])
 
-  if (!isLoggedIn) {
+  // Don't render anything until auth is initialized
+  if (!isInitialized) {
     return null
+  }
+
+  // Don't render the page if not authenticated
+  if (!isAuthenticated) {
+    return null
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    // AuthContext state change will trigger redirect via useEffect in login page
   }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      <Button
-        variant="ghost"
-        size="lg"
-        className="absolute top-8 right-8 text-xl font-black z-20"
-        onClick={() => router.push("/settings")}
-      >
-        <SettingsIcon className="w-6 h-6 mr-2" />
-        AJUSTES
-      </Button>
+      <div className="absolute top-8 right-8 flex gap-2 z-20">
+        <Button
+          variant="ghost"
+          size="lg"
+          className="text-xl font-black"
+          onClick={() => router.push("/settings")}
+        >
+          <SettingsIcon className="w-6 h-6 mr-2" />
+          AJUSTES
+        </Button>
+        <Button
+          variant="ghost"
+          size="lg"
+          className="text-xl font-black"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-6 h-6 mr-2" />
+          SALIR
+        </Button>
+      </div>
 
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
