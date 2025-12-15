@@ -3,13 +3,15 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Music, Users, ArrowRight } from "lucide-react"
+import { Music, Users, ArrowRight, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const router = useRouter()
+  const { login } = useAuth()
 
   const handleLogin = async () => {
     if (!identifier || !password) return
@@ -39,6 +41,12 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error("Login error", err?.message || err)
       alert("No se pudo iniciar sesión. Verifica tus credenciales.")
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && username && email) {
+      handleLogin()
     }
   }
 
@@ -89,6 +97,7 @@ export default function LoginPage() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="h-14 text-lg font-bold border-2 border-primary/50 focus:border-primary"
+                disabled={isLoading}
               />
             </div>
 
@@ -100,6 +109,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-14 text-lg font-bold border-2 border-secondary/50 focus:border-secondary"
+                disabled={isLoading}
               />
             </div>
 
@@ -109,8 +119,17 @@ export default function LoginPage() {
               onClick={handleLogin}
               disabled={!identifier || !password}
             >
-              ENTRAR AL JUEGO
-              <ArrowRight className="w-6 h-6 ml-2" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                  ENTRANDO...
+                </>
+              ) : (
+                <>
+                  ENTRAR AL JUEGO
+                  <ArrowRight className="w-6 h-6 ml-2" />
+                </>
+              )}
             </Button>
           </div>
 
