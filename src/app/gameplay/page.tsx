@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { PlayerBoard } from "@/components/gameplay/player-board"
 import { FeedbackOverlay } from "@/components/gameplay/feedback-overlay"
 import { GameplayEngine, generateSampleChart, type HitResult } from "@/lib/gameplay-engine"
+import { submitGameResult } from "@/lib/game-service"
+import { createTestAudioUrl } from "@/lib/audio-utils"
 
 interface PlayerState {
   id: number
@@ -38,6 +40,21 @@ export default function GameplayPage() {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [notes, setNotes] = useState<Note[]>([])
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set())
+  const lastHitTime = useRef<Map<number, number>>(new Map())
+  const [lastHitResult, setLastHitResult] = useState<{ lane: number; type: "perfect" | "good" | "miss" } | null>(null)
+
+  // Mapeo normalizado de teclas a lanes (0-3)
+  const keyToLaneMap = useRef<Map<string, number>>(new Map([
+    ["arrowleft", 0],
+    ["arrowdown", 1],
+    ["arrowup", 2],
+    ["arrowright", 3],
+    ["a", 0],
+    ["s", 1],
+    ["w", 2],
+    ["d", 3],
+  ]))
 
   // Estado del jugador local
   const [localPlayer, setLocalPlayer] = useState<PlayerState>({
@@ -71,6 +88,9 @@ export default function GameplayPage() {
     engineRef.current = new GameplayEngine(chart)
 
     if (audioRef.current) {
+      // Generar audio de prueba y establecerlo
+      const testAudioUrl = createTestAudioUrl()
+      audioRef.current.src = testAudioUrl
       engineRef.current.setAudioElement(audioRef.current)
     }
 
@@ -107,25 +127,82 @@ export default function GameplayPage() {
     }
   }, [])
 
+  // Force re-render para animaciones suaves (60fps)
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (!isPlaying || !engineRef.current) return
+    if (!isPlaying) return
 
-      const key = e.key
-      const laneIndex = localPlayer.keys.indexOf(key)
+    let animationFrameId: number
 
-      if (laneIndex === -1) return
+    const animate = () => {
+      if (audioRef.current) {
+        setCurrentTime(audioRef.current.currentTime)
+      }
+      animationFrameId = requestAnimationFrame(animate)
+    }
 
-      const currentTime = engineRef.current.getCurrentTime()
-      const result = engineRef.current.checkHit(laneIndex, currentTime)
+    animationFrameId = requestAnimationFrame(animate)
 
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+    }
+  }, [isPlaying])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      const laneIndex = keyToLaneMap.current.get(key)
+
+      console.log(`Key pressed: ${key}, Lane: ${laneIndex}`)
+
+      if (laneIndex === undefined) return
+      if (!isPlaying || !engineRef.current) {
+        console.log(`Not playing or engine not ready`)
+        return
+      }
+
+      // Evitar múltiples hits por la misma tecla presionada
+      setPressedKeys((prev) => {
+        if (prev.has(key)) {
+          console.log(`Key already pressed: ${key}`)
+          return prev
+        }
+        const newSet = new Set(prev)
+        newSet.add(key)
+        return newSet
+      })
+
+      // Evitar hits duplicados en el mismo carril dentro de 100ms
+      const now = engineRef.current.getCurrentTime()
+      const lastHit = lastHitTime.current.get(laneIndex) || 0
+      if (now - lastHit < 0.1) {
+        console.log(`Debounce: ${now - lastHit}s`)
+        return
+      }
+
+      const result = engineRef.current.checkHit(laneIndex, now)
+      console.log(`Hit result:`, result)
       if (result) {
+        lastHitTime.current.set(laneIndex, now)
+        setLastHitResult({ lane: laneIndex, type: result.type })
         processHitResult(result)
       }
     }
 
-    window.addEventListener("keydown", handleKeyPress)
-    return () => window.removeEventListener("keydown", handleKeyPress)
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      setPressedKeys((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(key)
+        return newSet
+      })
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
   }, [isPlaying, localPlayer.keys])
 
   const processHitResult = useCallback((result: HitResult) => {
@@ -166,30 +243,45 @@ export default function GameplayPage() {
   }
 
   const sendResultsToBackend = async () => {
-    // Enviar resultados finales al backend
+    if (!engineRef.current) return
+
+    const stats = engineRef.current.getGameStats()
+    const accuracy = stats.totalNotes > 0 ? (stats.hitNotes / stats.totalNotes) * 100 : 0
+
     const results = {
-      playerId: localPlayer.id,
-      totalScore: localPlayer.score,
-      perfectCount: localPlayer.perfectCount,
-      goodCount: localPlayer.goodCount,
-      missCount: localPlayer.missCount,
+      chartId: track || "sample",
+      difficulty: "normal",
+      score: localPlayer.score,
+      combo: localPlayer.combo,
       maxCombo: localPlayer.maxCombo,
-      track,
-      mode,
+      accuracy: accuracy,
+      perfect: localPlayer.perfectCount,
+      good: localPlayer.goodCount,
+      miss: localPlayer.missCount,
+      totalNotes: stats.totalNotes,
+      duration: currentTime * 1000,
       timestamp: new Date().toISOString(),
     }
 
     console.log("Enviando resultados al backend:", results)
 
-    // Aquí iría la llamada real al backend
-    // await fetch('/api/game/results', { method: 'POST', body: JSON.stringify(results) })
+    try {
+      const response = await submitGameResult(results)
+      if (response.success) {
+        console.log("Resultado guardado correctamente")
+      } else {
+        console.error("Error al guardar resultado:", response.message)
+      }
+    } catch (err) {
+      console.error("Error enviando resultados:", err)
+    }
 
     // Redirigir a pantalla de resultados
     setTimeout(() => {
       router.push(
-        `/results?score=${localPlayer.score}&perfect=${localPlayer.perfectCount}&good=${localPlayer.goodCount}&miss=${localPlayer.missCount}&combo=${localPlayer.maxCombo}`,
+        `/results?score=${localPlayer.score}&perfect=${localPlayer.perfectCount}&good=${localPlayer.goodCount}&miss=${localPlayer.missCount}&combo=${localPlayer.maxCombo}&accuracy=${accuracy.toFixed(1)}`,
       )
-    }, 2000)
+    }, 1000)
   }
 
   const formatTime = (time: number) => {
@@ -253,6 +345,8 @@ export default function GameplayPage() {
             isLocalPlayer={true}
             notes={notes}
             currentTime={currentTime}
+            pressedKeys={pressedKeys}
+            lastHitResult={lastHitResult}
           />
 
           {mode === "pvp" && (
@@ -274,9 +368,32 @@ export default function GameplayPage() {
       </div>
 
       {/* Audio element (hidden) */}
-      <audio ref={audioRef} src="/placeholder-audio.mp3" preload="auto" />
+      <audio 
+        ref={audioRef} 
 
-      <FeedbackOverlay feedback={null} />
+      />
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded text-xs font-mono z-50 max-w-xs border-2 border-primary">
+          <div className="mb-2 font-bold">DEBUG</div>
+          <div>Playing: {isPlaying ? "✓ ON" : "✗ OFF"}</div>
+          <div>Time: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s</div>
+          <div>Notes: {notes.length} (visible: {notes.filter(n => !n.hit).length})</div>
+          <div>Score: {localPlayer.score}</div>
+          <div>Combo: {localPlayer.combo}</div>
+          <div>Keys: {Array.from(pressedKeys).join(", ") || "none"}</div>
+          <div className="mt-2 space-y-1">
+            <button 
+              onClick={togglePlayPause}
+              className="w-full bg-primary hover:bg-primary/80 px-2 py-1 rounded text-white font-bold"
+            >
+              {isPlaying ? "⏸ PAUSE" : "▶ PLAY"}
+            </button>
+            <div className="text-green-400 text-xs">Presiona: Arrow Keys o A/S/W/D</div>
+          </div>
+        </div>
+      )}
 
       {/* Esquinas decorativas */}
       <div className="absolute top-0 left-0 w-32 h-32 border-t-8 border-l-8 border-primary/30" />

@@ -7,15 +7,38 @@ import { Music, Users, ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
+  const [password, setPassword] = useState("")
   const router = useRouter()
 
-  const handleLogin = () => {
-    if (username && email) {
-      // Store user info in localStorage
-      localStorage.setItem("fnf_user", JSON.stringify({ username, email }))
+  const handleLogin = async () => {
+    if (!identifier || !password) return
+
+    try {
+      const { api } = await import("@/lib/api")
+      const authPrefix = process.env.NEXT_PUBLIC_AUTH_PREFIX || "/auth"
+      const path = `${authPrefix.replace(/\/$/, "")}/login`
+
+      const result = await api.fetchJson<{ token?: string; user?: { username: string; email: string } }>(path, {
+        method: "POST",
+        body: { identifier, password },
+        credentials: "include",
+      })
+
+      const token = result?.token
+      const user = result?.user
+
+      if (token) {
+        localStorage.setItem("fnf_token", token)
+      }
+      if (user) {
+        localStorage.setItem("fnf_user", JSON.stringify(user))
+      }
+
       router.push("/")
+    } catch (err: any) {
+      console.error("Login error", err?.message || err)
+      alert("No se pudo iniciar sesión. Verifica tus credenciales.")
     }
   }
 
@@ -59,23 +82,23 @@ export default function LoginPage() {
 
           <div className="space-y-6">
             <div>
-              <label className="text-sm font-bold text-muted-foreground mb-2 block">NOMBRE DE USUARIO</label>
+              <label className="text-sm font-bold text-muted-foreground mb-2 block">USUARIO O CORREO</label>
               <Input
                 type="text"
-                placeholder="Ingresa tu nombre"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Ingresa tu usuario o correo"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="h-14 text-lg font-bold border-2 border-primary/50 focus:border-primary"
               />
             </div>
 
             <div>
-              <label className="text-sm font-bold text-muted-foreground mb-2 block">CORREO ELECTRÓNICO</label>
+              <label className="text-sm font-bold text-muted-foreground mb-2 block">CONTRASEÑA</label>
               <Input
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="password"
+                placeholder="Ingresa tu contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="h-14 text-lg font-bold border-2 border-secondary/50 focus:border-secondary"
               />
             </div>
@@ -84,7 +107,7 @@ export default function LoginPage() {
               size="lg"
               className="w-full h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
               onClick={handleLogin}
-              disabled={!username || !email}
+              disabled={!identifier || !password}
             >
               ENTRAR AL JUEGO
               <ArrowRight className="w-6 h-6 ml-2" />
