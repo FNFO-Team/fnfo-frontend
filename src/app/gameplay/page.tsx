@@ -7,7 +7,10 @@ import { PlayerBoard } from "@/components/gameplay/player-board"
 import { FeedbackOverlay } from "@/components/gameplay/feedback-overlay"
 import { GameplayEngine, generateSampleChart, type HitResult } from "@/lib/gameplay-engine"
 import { submitGameResult } from "@/lib/game-service"
-import { createTestAudioUrl } from "@/lib/audio-utils"
+import { createTestAudioUrl, createChartAudioUrl } from "@/lib/audio-utils"
+import { useAuth } from "@/hooks/use-auth"
+import { GameWSClient } from "@/lib/game-ws"
+import { matchmakingApi } from "@/lib/matchmaking"
 
 interface PlayerState {
   id: number
@@ -31,12 +34,18 @@ interface Note {
 export default function GameplayPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const roomId = searchParams.get("roomId") || "N/A"
   const mode = searchParams.get("mode") || "pvp"
   const track = searchParams.get("track") || "Tutorial"
-  const roomId = searchParams.get("roomId") || "N/A"
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const engineRef = useRef<GameplayEngine | null>(null)
+  const wsRef = useRef<GameWSClient | null>(null)
+
+  // Estados para cargar datos del matchmaking
+  const [roomData, setRoomData] = useState<any>(null)
+  const [loadingRoom, setLoadingRoom] = useState(true)
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -57,6 +66,27 @@ export default function GameplayPage() {
     ["w", 2],
     ["d", 3],
   ]))
+
+  // Cargar datos de la sala desde el matchmaking
+  useEffect(() => {
+    const fetchRoomData = async () => {
+      try {
+        if (roomId && roomId !== "N/A") {
+          const data = await matchmakingApi.getRoom(roomId)
+          if (data) {
+            setRoomData(data)
+            console.log("[Gameplay] Datos de sala cargados:", data)
+          }
+        }
+      } catch (err) {
+        console.error("[Gameplay] Error al cargar datos de sala:", err)
+      } finally {
+        setLoadingRoom(false)
+      }
+    }
+
+    fetchRoomData()
+  }, [roomId])
 
   // Estado del jugador local - Inicializar desde sessionStorage
   const [localPlayer, setLocalPlayer] = useState<PlayerState>(() => {
@@ -101,39 +131,11 @@ export default function GameplayPage() {
     }
   })
 
-  // Estado del oponente - Inicializar desde sessionStorage
+  // Estado del oponente - Inicializar desde matchmaking
   const [opponent, setOpponent] = useState<PlayerState>(() => {
-    if (typeof window !== "undefined") {
-      const players = sessionStorage.getItem("gamePlayers")
-      if (players) {
-        const parsedPlayers = JSON.parse(players)
-        const player = parsedPlayers[1] || {
-          id: 2,
-          name: "Jugador 2",
-          score: 0,
-          combo: 0,
-          maxCombo: 0,
-          perfectCount: 0,
-          goodCount: 0,
-          missCount: 0,
-          ready: false,
-        }
-        return {
-          id: player.id,
-          name: player.name,
-          score: 0,
-          combo: 0,
-          maxCombo: 0,
-          perfectCount: 0,
-          goodCount: 0,
-          missCount: 0,
-          keys: ["A", "S", "W", "D"],
-        }
-      }
-    }
     return {
       id: 2,
-      name: "Jugador 2",
+      name: "Oponente",
       score: 0,
       combo: 0,
       maxCombo: 0,
@@ -143,6 +145,58 @@ export default function GameplayPage() {
       keys: ["A", "S", "W", "D"],
     }
   })
+
+  // Efecto para cargar datos de jugadores desde matchmaking
+  useEffect(() => {
+    if (roomData && roomData.players && roomData.players.length > 1) {
+      // Actualizar nombre del oponente desde los datos de la sala
+      const opponentPlayerId = roomData.players[1]
+      const opponentName = opponentPlayerId?.replace('player_', '').replace(/_/g, ' ').toUpperCase() || "Oponente"
+      
+      setOpponent(prev => ({
+        ...prev,
+        name: opponentName,
+      }))
+    }
+  }, [roomData])
+
+  // Conectar WebSocket de gameplay
+  useEffect(() => {
+    const playerId = user?.username ? `player_${user.username.toLowerCase().replace(/\s+/g, '_')}` : ""
+    if (!roomId || roomId === "N/A" || !playerId) return
+
+    const client = new GameWSClient({
+      onOpponentHit: (evt) => {
+        setOpponent((prev) => {
+          const nextCombo = evt.hitType === "miss" ? 0 : prev.combo + 1
+          const nextMaxCombo = Math.max(prev.maxCombo, evt.hitType === "miss" ? prev.maxCombo : nextCombo)
+          return {
+            ...prev,
+            score: prev.score + (evt.points || 0),
+            combo: nextCombo,
+            maxCombo: nextMaxCombo,
+            perfectCount: prev.perfectCount + (evt.hitType === "perfect" ? 1 : 0),
+            goodCount: prev.goodCount + (evt.hitType === "good" ? 1 : 0),
+            missCount: prev.missCount + (evt.hitType === "miss" ? 1 : 0),
+          }
+        })
+      },
+      onStart: () => {
+        // Intentar iniciar audio sincronizado
+        if (audioRef.current && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {})
+          setIsPlaying(true)
+        }
+      },
+    })
+    wsRef.current = client
+    client.connect(roomId, playerId)
+
+    return () => {
+      client.disconnect()
+      wsRef.current = null
+    }
+  }, [roomId, user, audioRef])
 
   // Definir sendResultsToBackend ANTES de usarlo en useEffect
   const sendResultsToBackend = useCallback(async () => {
@@ -238,12 +292,14 @@ export default function GameplayPage() {
     const chart = generateSampleChart(140, "normal")
     engineRef.current = new GameplayEngine(chart)
 
-    if (audioRef.current) {
-      // Generar audio de prueba y establecerlo
-      const testAudioUrl = createTestAudioUrl()
-      audioRef.current.src = testAudioUrl
+    if (audioRef.current && engineRef.current) {
+      // Generar audio basado en el chart: tonos cortos por cada nota
+      const chartAudioUrl = createChartAudioUrl(chart)
+      audioRef.current.src = chartAudioUrl
       engineRef.current.setAudioElement(audioRef.current)
     }
+
+    // Sonidos por tecla deshabilitados: no inicializamos reproductor
 
     const visualNotes: Note[] = chart.notes.map((note) => ({
       id: note.id,
@@ -404,6 +460,18 @@ export default function GameplayPage() {
       const comboMultiplier = Math.floor(newCombo / 10) + 1
       const scoreGain = result.points * comboMultiplier
 
+      // Emitir hit por WebSocket (sin depender del nuevo estado)
+      try {
+        const t = engineRef.current?.getCurrentTime() || 0
+        wsRef.current?.sendHit({
+          noteId: result.note.id,
+          lane: result.note.lane,
+          hitType: result.type,
+          points: scoreGain,
+          t,
+        })
+      } catch {}
+
       return {
         ...prev,
         score: prev.score + scoreGain,
@@ -448,6 +516,19 @@ export default function GameplayPage() {
     const minutes = Math.floor(time / 60)
     const seconds = Math.floor(time % 60)
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
+  }
+
+  // Mostrar pantalla de carga mientras se obtienen datos de matchmaking
+  if (loadingRoom && roomId !== "N/A") {
+    return (
+      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-primary mb-2">CARGANDO SALA</h2>
+          <p className="text-muted-foreground">Conectando con el servidor de matchmaking...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

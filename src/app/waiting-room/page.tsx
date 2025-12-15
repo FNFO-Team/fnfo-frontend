@@ -125,7 +125,7 @@ export default function WaitingRoomPage() {
 
   const handleStartGame = () => {
     if (room?.roomId) {
-      router.push(`/game?roomId=${room.roomId}&mode=${room.mode || gameMode}`)
+      router.push(`/gameplay?roomId=${room.roomId}&mode=${room.mode || gameMode}`)
     }
   }
 
