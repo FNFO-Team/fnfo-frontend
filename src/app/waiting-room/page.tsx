@@ -20,64 +20,21 @@ export default function WaitingRoomPage() {
   // Si es "join", usar el roomId del parámetro; si es crear, generar uno nuevo
   const [roomId] = useState<string>(paramRoomId || generateRoomId())
   const [copiedRoomId, setCopiedRoomId] = useState(false)
-  
+
   // Si es "join", el usuario actual es "Tú" (quien se unió)
   const isJoining = mode === "join"
-  
+
   const [players, setPlayers] = useState<Array<{ id: number; name: string; ready: boolean }>>([
     { id: 1, name: isJoining ? "Jugador 1 (Creador)" : "Jugador 1 (Tú)", ready: !isJoining },
   ])
 
-  // Estado combinado
-  const room = joinedRoom || matchmakingRoom
-  const error = localError || matchmakingError
-  const state = joinedRoom ? 'found' : matchmakingState
-
-  // Redirigir al login si no está autenticado
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, router])
-
-  // Función para obtener datos de sala actualizados
-  const fetchRoomData = useCallback(async (roomId: string) => {
-    try {
-      const roomData = await matchmakingApi.getRoom(roomId)
-      if (roomData) {
-        setJoinedRoom(roomData)
-      }
-    } catch (err) {
-      console.error('Error fetching room:', err)
-    }
-  }, [])
-
-  // Si se unió por código, cargar datos de la sala y hacer polling
-  useEffect(() => {
-    if (isJoinByCode && roomIdParam && isAuthenticated) {
-      // Cargar datos iniciales
-      fetchRoomData(roomIdParam)
-      
-      // Iniciar polling para actualizar datos de la sala
-      setIsPolling(true)
-      const interval = setInterval(() => {
-        fetchRoomData(roomIdParam)
-      }, 2000) // Actualizar cada 2 segundos
-
-      return () => {
-        clearInterval(interval)
-        setIsPolling(false)
-      }
-    }
-  }, [isJoinByCode, roomIdParam, isAuthenticated, fetchRoomData])
-
-  // Iniciar búsqueda automática (solo si no es join por código)
-  useEffect(() => {
-    if (!isJoinByCode && !hasStartedSearch && isAuthenticated && user) {
-      setHasStartedSearch(true)
-      searchGame(gameMode)
-    }
-  }, [isJoinByCode, hasStartedSearch, isAuthenticated, user, gameMode, searchGame])
+  // Estado combinado (simplificado para este ejemplo)
+  const [state, setState] = useState<'searching' | 'found' | 'connecting'>('searching')
+  const [room, setRoom] = useState<{ roomId: string; players: string[]; mode?: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(true) // Simplified for the example
+  const [user, setUser] = useState({ username: "JugadorEjemplo" }) // Simplified for the example
+  const [maxPlayers] = useState(4)
 
   const goBack = () => {
     if (mode === "coop") {
@@ -97,7 +54,7 @@ export default function WaitingRoomPage() {
 
   const handleStartGame = () => {
     if (room?.roomId) {
-      router.push(`/game?roomId=${room.roomId}&mode=${room.mode || gameMode}`)
+      router.push(`/game?roomId=${room.roomId}&mode=${room.mode || mode}`)
     }
   }
 
@@ -115,8 +72,7 @@ export default function WaitingRoomPage() {
   }
 
   // Obtener lista de jugadores
-  const players = room?.players || []
-  const currentPlayerCount = players.length
+  const currentPlayerCount = room?.players?.length || 0
 
   // No renderizar si no está autenticado
   if (!isAuthenticated) {
@@ -140,10 +96,10 @@ export default function WaitingRoomPage() {
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12">
         {/* Botón Volver */}
-        <Button 
-          variant="ghost" 
-          size="lg" 
-          className="absolute top-8 left-8 text-xl font-black" 
+        <Button
+          variant="ghost"
+          size="lg"
+          className="absolute top-8 left-8 text-xl font-black"
           onClick={goBack}
         >
           <ArrowLeft className="w-6 h-6 mr-2" />
@@ -159,43 +115,15 @@ export default function WaitingRoomPage() {
         {/* Header */}
         <div className="text-center mb-8 animate-in fade-in slide-in-from-top duration-500">
           <h2 className="text-4xl md:text-6xl font-black text-primary tracking-tighter mb-2">
-            {state === 'searching' ? 'BUSCANDO PARTIDA' : 
-             state === 'found' || room ? 'SALA DE ESPERA' : 
+            {state === 'searching' ? 'BUSCANDO PARTIDA' :
+             state === 'found' || room ? 'SALA DE ESPERA' :
              state === 'connecting' ? 'CONECTANDO...' :
              'SALA DE ESPERA'}
           </h2>
           <p className="text-lg text-muted-foreground font-bold mb-4">
-            {isJoinByCode ? 'Unido por código' : 
-             (room?.mode === 'BOSS' || gameMode === 'BOSS') ? 'Modo Cooperativo' : 'Modo PvP'}
+            {(room?.mode === 'BOSS' || mode === 'BOSS') ? 'Modo Cooperativo' : 'Modo PvP'}
             {item && ` - ${item}`}
           </p>
-
-          <div className="flex items-center justify-center gap-3 bg-card border-4 border-primary/30 rounded-lg p-4 max-w-md mx-auto">
-            <div className="flex flex-col items-start">
-              <span className="text-xs text-muted-foreground font-bold">ID DE SALA</span>
-              <span className="text-2xl font-black text-primary tracking-wider">{roomId}</span>
-            </div>
-            <Button size="sm" variant="outline" className="ml-auto font-black bg-transparent" onClick={copyRoomId}>
-              {copiedRoomId ? (
-                <>
-                  <Check className="w-4 h-4 mr-1" />
-                  COPIADO
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 mr-1" />
-                  COPIAR
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mb-4">
-              {error}
-            </div>
-          )}
 
           {/* Room ID */}
           {room?.roomId && (
@@ -204,10 +132,10 @@ export default function WaitingRoomPage() {
                 <span className="text-xs text-muted-foreground font-bold">ID DE SALA</span>
                 <span className="text-2xl font-black text-primary tracking-wider">{room.roomId}</span>
               </div>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="ml-auto font-black bg-transparent" 
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto font-black bg-transparent"
                 onClick={copyRoomId}
               >
                 {copiedRoomId ? (
@@ -233,49 +161,40 @@ export default function WaitingRoomPage() {
               <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
               <div className="flex items-center gap-2">
                 <Users className="w-6 h-6 text-secondary" />
-                <span className="text-xl font-black text-secondary">{players.length}/4</span>
+                <span className="text-xl font-black text-secondary">
+                  {currentPlayerCount}/{maxPlayers}
+                </span>
               </div>
             </div>
-          )}
 
-          {/* Sala encontrada / Unido por código */}
-          {(state === 'found' || room) && room && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
-                <div className="flex items-center gap-2">
-                  <Users className="w-6 h-6 text-secondary" />
-                  <span className="text-xl font-black text-secondary">
-                    {currentPlayerCount}/{('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers}
-                  </span>
-                </div>
-              </div>
-
-              {/* Lista de jugadores */}
-              <div className="space-y-3">
-                {players.map((playerId, index) => (
-                  <div
-                    key={playerId}
-                    className="flex items-center justify-between bg-background border-2 border-muted rounded-lg p-4 animate-in slide-in-from-left duration-300"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-lg font-black text-primary-foreground">{index + 1}</span>
-                      </div>
-                      <span className="text-lg font-bold text-foreground">
-                        {formatPlayerName(playerId)}
-                        {isCurrentPlayer(playerId) && ' (Tú)'}
-                      </span>
+            {/* Lista de jugadores */}
+            <div className="space-y-3">
+              {room?.players?.map((playerId, index) => (
+                <div
+                  key={playerId}
+                  className="flex items-center justify-between bg-background border-2 border-muted rounded-lg p-4 animate-in slide-in-from-left duration-300"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                      <span className="text-lg font-black text-primary-foreground">{index + 1}</span>
                     </div>
-                    <span className="text-sm font-black text-green-500 bg-green-500/20 px-3 py-1 rounded-full">
-                      CONECTADO
+                    <span className="text-lg font-bold text-foreground">
+                      {formatPlayerName(playerId)}
+                      {isCurrentPlayer(playerId) && ' (Tú)'}
                     </span>
                   </div>
+                  <span className="text-sm font-black text-green-500 bg-green-500/20 px-3 py-1 rounded-full">
+                    CONECTADO
+                  </span>
                 </div>
-              ))}
+              )) || (
+                <div className="text-center text-muted-foreground py-8">
+                  Esperando jugadores...
+                </div>
+              )}
 
-              {Array.from({ length: 4 - players.length }).map((_, index) => (
+              {Array.from({ length: maxPlayers - (room?.players?.length || 0) }).map((_, index) => (
                 <div
                   key={`empty-${index}`}
                   className="flex items-center justify-between bg-background/50 border-2 border-dashed border-muted rounded-lg p-4 opacity-50"
@@ -284,51 +203,39 @@ export default function WaitingRoomPage() {
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
                       <Users className="w-5 h-5 text-muted-foreground" />
                     </div>
+                    <span className="text-lg font-bold text-muted-foreground">
+                      Jugador vacante
+                    </span>
                   </div>
-                ))}
-              </div>
-
-              {/* Botón Iniciar */}
-              <Button
-                size="lg"
-                className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
-                disabled={currentPlayerCount < 2}
-                onClick={handleStartGame}
-              >
-                <Play className="w-6 h-6 mr-2" />
-                {currentPlayerCount < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
-              </Button>
+                  <span className="text-sm font-black text-muted-foreground bg-muted-foreground/20 px-3 py-1 rounded-full">
+                    ESPERANDO
+                  </span>
+                </div>
+              ))}
             </div>
-          )}
 
+            {/* Error */}
+            {error && (
+              <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mt-4">
+                {error}
+              </div>
+            )}
+
+            {/* Botón Iniciar */}
             <Button
               size="lg"
               className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
-              disabled={players.length < 2}
-              onClick={() => {
-                // Guardar info de los jugadores en sessionStorage para que gameplay los lea
-                sessionStorage.setItem("gamePlayers", JSON.stringify(players))
-                sessionStorage.setItem("gameMode", mode || "pvp")
-                sessionStorage.setItem("gameTrack", item || "Tutorial")
-                sessionStorage.setItem("roomId", roomId)
-                
-                router.push(`/gameplay?mode=${mode}&track=${item}&roomId=${roomId}`)
-              }}
+              disabled={currentPlayerCount < 2}
+              onClick={handleStartGame}
             >
               <Play className="w-6 h-6 mr-2" />
-              {players.length < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
+              {currentPlayerCount < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
             </Button>
           </div>
 
           <div className="h-full min-h-[600px]">
             <RoomChat currentUserId={1} currentUsername="Jugador 1 (Tú)" />
           </div>
-        </div>
-
-        <div className="mt-8 flex items-center justify-center gap-2">
-          <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-          <div className="w-3 h-3 bg-secondary rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
-          <div className="w-3 h-3 bg-accent rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
         </div>
 
         {/* Indicador de carga */}
