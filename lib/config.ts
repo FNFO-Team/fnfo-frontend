@@ -7,7 +7,7 @@ export const config = {
     url: 'https://chat-service.livelyocean-46fb9704.brazilsouth.azurecontainerapps.io'
   },
   userProfile: {
-    url: 'http://localhost:8080', // Actualizar cuando despliegues este servicio
+    url: 'https://fnfo-userprofile-service-d2gzaqg5hwgphxab.brazilsouth-01.azurewebsites.net', 
     apiPrefix: '/api/profiles'
   }
 }

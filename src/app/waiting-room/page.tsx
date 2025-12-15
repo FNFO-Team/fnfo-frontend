@@ -111,7 +111,7 @@ export default function WaitingRoomPage() {
     } else if (modeParam === 'coop') {
       router.push('/boss-select')
     } else {
-      router.push('/track-select')
+      router.push("/track-select")
     }
   }
 
@@ -285,6 +285,9 @@ export default function WaitingRoomPage() {
                       {currentPlayerCount}/{('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers}
                     </span>
                   </div>
+                  <span className="text-sm font-black text-green-500 bg-green-500/20 px-3 py-1 rounded-full">
+                    CONECTADO
+                  </span>
                 </div>
 
                 {/* Lista de jugadores */}
