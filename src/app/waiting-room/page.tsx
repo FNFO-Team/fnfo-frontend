@@ -2,47 +2,31 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Users, Play, Copy, Check, Loader2, X } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useMatchmaking } from '@/hooks/use-matchmaking'
-import { useAuth } from '@/hooks/use-auth'
-import { GameMode, matchmakingApi, Room } from '@/lib/matchmaking'
+import { ArrowLeft, Users, Play, Copy, Check } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { RoomChat } from "@/components/chat/room-chat"
+
+function generateRoomId(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
+}
 
 export default function WaitingRoomPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, isAuthenticated } = useAuth()
-  
-  // Parámetros de URL
-  const modeParam = searchParams.get('mode') // 'coop', 'pvp', o 'join'
-  const item = searchParams.get('item') // Boss o Track seleccionado
-  const roomIdParam = searchParams.get('roomId') // Para cuando se une por código
-  
-  // Determinar si es modo "unirse por código" o "buscar partida"
-  const isJoinByCode = modeParam === 'join' && roomIdParam
-  
-  // Convertir modo a GameMode (solo para matchmaking automático)
-  const gameMode: GameMode = modeParam === 'coop' ? 'BOSS' : 'PVP'
-  const maxPlayers = 4
-  
-  // Hook de matchmaking (solo para búsqueda automática)
-  const {
-    state: matchmakingState,
-    isConnected,
-    queuePosition,
-    waitingPlayers,
-    room: matchmakingRoom,
-    error: matchmakingError,
-    searchGame,
-    cancelSearch,
-  } = useMatchmaking()
-  
-  // Estados locales
+  const mode = searchParams.get("mode")
+  const item = searchParams.get("item")
+  const paramRoomId = searchParams.get("roomId")
+
+  // Si es "join", usar el roomId del parámetro; si es crear, generar uno nuevo
+  const [roomId] = useState<string>(paramRoomId || generateRoomId())
   const [copiedRoomId, setCopiedRoomId] = useState(false)
-  const [hasStartedSearch, setHasStartedSearch] = useState(false)
-  const [joinedRoom, setJoinedRoom] = useState<Room | null>(null)
-  const [isPolling, setIsPolling] = useState(false)
-  const [localError, setLocalError] = useState<string | null>(null)
+  
+  // Si es "join", el usuario actual es "Tú" (quien se unió)
+  const isJoining = mode === "join"
+  
+  const [players, setPlayers] = useState<Array<{ id: number; name: string; ready: boolean }>>([
+    { id: 1, name: isJoining ? "Jugador 1 (Creador)" : "Jugador 1 (Tú)", ready: !isJoining },
+  ])
 
   // Estado combinado
   const room = joinedRoom || matchmakingRoom
@@ -96,16 +80,10 @@ export default function WaitingRoomPage() {
   }, [isJoinByCode, hasStartedSearch, isAuthenticated, user, gameMode, searchGame])
 
   const goBack = () => {
-    if (!isJoinByCode) {
-      cancelSearch()
-    }
-    
-    if (modeParam === 'join') {
-      router.push('/lobby')
-    } else if (modeParam === 'coop') {
-      router.push('/boss-select')
+    if (mode === "coop") {
+      router.push("/boss-select")
     } else {
-      router.push('/track-select')
+      router.push("/track-select")
     }
   }
 
@@ -192,12 +170,24 @@ export default function WaitingRoomPage() {
             {item && ` - ${item}`}
           </p>
 
-          {/* Estado de conexión */}
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className={`w-3 h-3 rounded-full ${(isConnected || isPolling) ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
-            <span className="text-sm text-muted-foreground">
-              {(isConnected || isPolling) ? 'Conectado al servidor' : 'Conectando...'}
-            </span>
+          <div className="flex items-center justify-center gap-3 bg-card border-4 border-primary/30 rounded-lg p-4 max-w-md mx-auto">
+            <div className="flex flex-col items-start">
+              <span className="text-xs text-muted-foreground font-bold">ID DE SALA</span>
+              <span className="text-2xl font-black text-primary tracking-wider">{roomId}</span>
+            </div>
+            <Button size="sm" variant="outline" className="ml-auto font-black bg-transparent" onClick={copyRoomId}>
+              {copiedRoomId ? (
+                <>
+                  <Check className="w-4 h-4 mr-1" />
+                  COPIADO
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 mr-1" />
+                  COPIAR
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Error */}
@@ -236,31 +226,15 @@ export default function WaitingRoomPage() {
           )}
         </div>
 
-        {/* Contenido principal */}
-        <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom duration-500">
-          
-          {/* Buscando partida (solo para matchmaking automático) */}
-          {!isJoinByCode && state === 'searching' && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center">
-              <Loader2 className="w-16 h-16 mx-auto mb-4 text-primary animate-spin" />
-              <h3 className="text-2xl font-black text-foreground mb-2">BUSCANDO OPONENTES</h3>
-              <p className="text-muted-foreground mb-4">
-                {queuePosition && `Posición en cola: ${queuePosition}`}
-                {waitingPlayers > 0 && ` • ${waitingPlayers} jugador${waitingPlayers > 1 ? 'es' : ''} esperando`}
-              </p>
-              
-              <Button
-                variant="outline"
-                size="lg"
-                className="font-black"
-                onClick={() => {
-                  cancelSearch()
-                  goBack()
-                }}
-              >
-                <X className="w-5 h-5 mr-2" />
-                CANCELAR BÚSQUEDA
-              </Button>
+        <div className="w-full max-w-6xl grid md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom duration-500">
+          {/* Players List */}
+          <div className="bg-card border-4 border-secondary/30 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
+              <div className="flex items-center gap-2">
+                <Users className="w-6 h-6 text-secondary" />
+                <span className="text-xl font-black text-secondary">{players.length}/4</span>
+              </div>
             </div>
           )}
 
@@ -298,19 +272,17 @@ export default function WaitingRoomPage() {
                       CONECTADO
                     </span>
                   </div>
-                ))}
+                </div>
+              ))}
 
-                {/* Slots vacíos */}
-                {Array.from({ length: (('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers) - currentPlayerCount }).map((_, index) => (
-                  <div
-                    key={`empty-${index}`}
-                    className="flex items-center justify-between bg-background/50 border-2 border-dashed border-muted rounded-lg p-4 opacity-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        <Users className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <span className="text-lg font-bold text-muted-foreground">Esperando jugador...</span>
+              {Array.from({ length: 4 - players.length }).map((_, index) => (
+                <div
+                  key={`empty-${index}`}
+                  className="flex items-center justify-between bg-background/50 border-2 border-dashed border-muted rounded-lg p-4 opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <Users className="w-5 h-5 text-muted-foreground" />
                     </div>
                   </div>
                 ))}
@@ -329,33 +301,34 @@ export default function WaitingRoomPage() {
             </div>
           )}
 
-          {/* Conectando */}
-          {!isJoinByCode && state === 'connecting' && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center">
-              <Loader2 className="w-16 h-16 mx-auto mb-4 text-primary animate-spin" />
-              <h3 className="text-2xl font-black text-foreground">CONECTANDO AL SERVIDOR</h3>
-              <p className="text-muted-foreground">Por favor espera...</p>
-            </div>
-          )}
+            <Button
+              size="lg"
+              className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
+              disabled={players.length < 2}
+              onClick={() => {
+                // Guardar info de los jugadores en sessionStorage para que gameplay los lea
+                sessionStorage.setItem("gamePlayers", JSON.stringify(players))
+                sessionStorage.setItem("gameMode", mode || "pvp")
+                sessionStorage.setItem("gameTrack", item || "Tutorial")
+                sessionStorage.setItem("roomId", roomId)
+                
+                router.push(`/gameplay?mode=${mode}&track=${item}&roomId=${roomId}`)
+              }}
+            >
+              <Play className="w-6 h-6 mr-2" />
+              {players.length < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
+            </Button>
+          </div>
 
-          {/* Error */}
-          {state === 'error' && (
-            <div className="bg-card border-4 border-destructive/30 rounded-lg p-8 text-center">
-              <X className="w-16 h-16 mx-auto mb-4 text-destructive" />
-              <h3 className="text-2xl font-black text-foreground mb-2">ERROR DE CONEXIÓN</h3>
-              <p className="text-muted-foreground mb-4">{error}</p>
-              <Button
-                size="lg"
-                className="font-black"
-                onClick={() => {
-                  setHasStartedSearch(false)
-                  setLocalError(null)
-                }}
-              >
-                REINTENTAR
-              </Button>
-            </div>
-          )}
+          <div className="h-full min-h-[600px]">
+            <RoomChat currentUserId={1} currentUsername="Jugador 1 (Tú)" />
+          </div>
+        </div>
+
+        <div className="mt-8 flex items-center justify-center gap-2">
+          <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+          <div className="w-3 h-3 bg-secondary rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
+          <div className="w-3 h-3 bg-accent rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
         </div>
 
         {/* Indicador de carga */}
