@@ -148,6 +148,12 @@ class MatchmakingClient {
       // Evento: Error de matchmaking
       this.socket.on('matchmaking-error', (error) => {
         console.error('[Matchmaking] Error:', error)
+        
+        // Ignorar error si ya está en cola (no es crítico)
+        if (error.message?.includes('ya está en la cola')) {
+          return
+        }
+        
         this.handlers.onError?.(new Error(error.message || 'Error de matchmaking'))
       })
     })

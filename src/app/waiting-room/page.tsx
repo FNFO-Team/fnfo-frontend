@@ -206,12 +206,14 @@ export default function WaitingRoomPage() {
             </span>
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mb-2">
-              {error}
-            </div>
-          )}
+          {/*
+            {error && (
+              <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mb-2">
+                {error}
+              </div>
+            )}
+          */}
+
 
           {/* Room ID */}
           {room?.roomId && (
