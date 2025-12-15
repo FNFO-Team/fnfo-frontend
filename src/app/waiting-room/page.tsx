@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMatchmaking } from '@/hooks/use-matchmaking'
 import { useAuth } from '@/hooks/use-auth'
 import { GameMode, matchmakingApi, Room } from '@/lib/matchmaking'
+import { RoomChat } from '@/components/chat/room-chat'
 
 export default function WaitingRoomPage() {
   const router = useRouter()
@@ -48,6 +49,11 @@ export default function WaitingRoomPage() {
   const room = joinedRoom || matchmakingRoom
   const error = localError || matchmakingError
   const state = joinedRoom ? 'found' : matchmakingState
+
+  // Generar oduserId para el chat
+  const oduserId = user?.username 
+    ? `player_${user.username.toLowerCase().replace(/\s+/g, '_')}`
+    : ''
 
   // Redirigir al login si no está autenticado
   useEffect(() => {
@@ -160,7 +166,7 @@ export default function WaitingRoomPage() {
         />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12">
+      <div className="relative z-10 flex flex-col items-center min-h-screen px-4 py-12">
         {/* Botón Volver */}
         <Button 
           variant="ghost" 
@@ -179,21 +185,21 @@ export default function WaitingRoomPage() {
         </div>
 
         {/* Header */}
-        <div className="text-center mb-8 animate-in fade-in slide-in-from-top duration-500">
-          <h2 className="text-4xl md:text-6xl font-black text-primary tracking-tighter mb-2">
+        <div className="text-center mb-6 mt-16 animate-in fade-in slide-in-from-top duration-500">
+          <h2 className="text-3xl md:text-5xl font-black text-primary tracking-tighter mb-2">
             {state === 'searching' ? 'BUSCANDO PARTIDA' : 
              state === 'found' || room ? 'SALA DE ESPERA' : 
              state === 'connecting' ? 'CONECTANDO...' :
              'SALA DE ESPERA'}
           </h2>
-          <p className="text-lg text-muted-foreground font-bold mb-4">
+          <p className="text-md text-muted-foreground font-bold mb-2">
             {isJoinByCode ? 'Unido por código' : 
              (room?.mode === 'BOSS' || gameMode === 'BOSS') ? 'Modo Cooperativo' : 'Modo PvP'}
             {item && ` - ${item}`}
           </p>
 
           {/* Estado de conexión */}
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-2">
             <div className={`w-3 h-3 rounded-full ${(isConnected || isPolling) ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
             <span className="text-sm text-muted-foreground">
               {(isConnected || isPolling) ? 'Conectado al servidor' : 'Conectando...'}
@@ -202,17 +208,17 @@ export default function WaitingRoomPage() {
 
           {/* Error */}
           {error && (
-            <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mb-4">
+            <div className="bg-destructive/20 border border-destructive text-destructive px-4 py-2 rounded-lg mb-2">
               {error}
             </div>
           )}
 
           {/* Room ID */}
           {room?.roomId && (
-            <div className="flex items-center justify-center gap-3 bg-card border-4 border-primary/30 rounded-lg p-4 max-w-md mx-auto">
+            <div className="flex items-center justify-center gap-3 bg-card border-4 border-primary/30 rounded-lg p-3 max-w-md mx-auto">
               <div className="flex flex-col items-start">
                 <span className="text-xs text-muted-foreground font-bold">ID DE SALA</span>
-                <span className="text-2xl font-black text-primary tracking-wider">{room.roomId}</span>
+                <span className="text-xl font-black text-primary tracking-wider">{room.roomId}</span>
               </div>
               <Button 
                 size="sm" 
@@ -236,12 +242,12 @@ export default function WaitingRoomPage() {
           )}
         </div>
 
-        {/* Contenido principal */}
-        <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom duration-500">
+        {/* Contenido principal - Grid con jugadores y chat */}
+        <div className="w-full max-w-6xl animate-in fade-in slide-in-from-bottom duration-500">
           
           {/* Buscando partida (solo para matchmaking automático) */}
           {!isJoinByCode && state === 'searching' && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center">
+            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center max-w-2xl mx-auto">
               <Loader2 className="w-16 h-16 mx-auto mb-4 text-primary animate-spin" />
               <h3 className="text-2xl font-black text-foreground mb-2">BUSCANDO OPONENTES</h3>
               <p className="text-muted-foreground mb-4">
@@ -266,72 +272,84 @@ export default function WaitingRoomPage() {
 
           {/* Sala encontrada / Unido por código */}
           {(state === 'found' || room) && room && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
-                <div className="flex items-center gap-2">
-                  <Users className="w-6 h-6 text-secondary" />
-                  <span className="text-xl font-black text-secondary">
-                    {currentPlayerCount}/{('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers}
-                  </span>
-                </div>
-              </div>
-
-              {/* Lista de jugadores */}
-              <div className="space-y-3">
-                {players.map((playerId, index) => (
-                  <div
-                    key={playerId}
-                    className="flex items-center justify-between bg-background border-2 border-muted rounded-lg p-4 animate-in slide-in-from-left duration-300"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-lg font-black text-primary-foreground">{index + 1}</span>
-                      </div>
-                      <span className="text-lg font-bold text-foreground">
-                        {formatPlayerName(playerId)}
-                        {isCurrentPlayer(playerId) && ' (Tú)'}
-                      </span>
-                    </div>
-                    <span className="text-sm font-black text-green-500 bg-green-500/20 px-3 py-1 rounded-full">
-                      CONECTADO
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Panel de jugadores */}
+              <div className="bg-card border-4 border-secondary/30 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-black text-foreground">JUGADORES</h3>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-6 h-6 text-secondary" />
+                    <span className="text-xl font-black text-secondary">
+                      {currentPlayerCount}/{('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers}
                     </span>
                   </div>
-                ))}
+                </div>
 
-                {/* Slots vacíos */}
-                {Array.from({ length: (('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers) - currentPlayerCount }).map((_, index) => (
-                  <div
-                    key={`empty-${index}`}
-                    className="flex items-center justify-between bg-background/50 border-2 border-dashed border-muted rounded-lg p-4 opacity-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        <Users className="w-5 h-5 text-muted-foreground" />
+                {/* Lista de jugadores */}
+                <div className="space-y-3">
+                  {players.map((playerId, index) => (
+                    <div
+                      key={playerId}
+                      className="flex items-center justify-between bg-background border-2 border-muted rounded-lg p-4 animate-in slide-in-from-left duration-300"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                          <span className="text-lg font-black text-primary-foreground">{index + 1}</span>
+                        </div>
+                        <span className="text-lg font-bold text-foreground">
+                          {formatPlayerName(playerId)}
+                          {isCurrentPlayer(playerId) && ' (Tú)'}
+                        </span>
                       </div>
-                      <span className="text-lg font-bold text-muted-foreground">Esperando jugador...</span>
+                      <span className="text-sm font-black text-green-500 bg-green-500/20 px-3 py-1 rounded-full">
+                        CONECTADO
+                      </span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+
+                  {/* Slots vacíos */}
+                  {Array.from({ length: (('maxPlayers' in room ? room.maxPlayers : null) || maxPlayers) - currentPlayerCount }).map((_, index) => (
+                    <div
+                      key={`empty-${index}`}
+                      className="flex items-center justify-between bg-background/50 border-2 border-dashed border-muted rounded-lg p-4 opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <Users className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <span className="text-lg font-bold text-muted-foreground">Esperando jugador...</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Botón Iniciar */}
+                <Button
+                  size="lg"
+                  className="w-full mt-6 h-14 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
+                  disabled={currentPlayerCount < 2}
+                  onClick={handleStartGame}
+                >
+                  <Play className="w-6 h-6 mr-2" />
+                  {currentPlayerCount < 2 ? "ESPERANDO..." : "INICIAR PARTIDA"}
+                </Button>
               </div>
 
-              {/* Botón Iniciar */}
-              <Button
-                size="lg"
-                className="w-full mt-6 h-16 text-xl font-black tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-primary-foreground/20 shadow-xl transition-all duration-300 hover:scale-105"
-                disabled={currentPlayerCount < 2}
-                onClick={handleStartGame}
-              >
-                <Play className="w-6 h-6 mr-2" />
-                {currentPlayerCount < 2 ? "ESPERANDO JUGADORES..." : "INICIAR PARTIDA"}
-              </Button>
+              {/* Panel de chat */}
+              <div className="h-[500px]">
+                <RoomChat
+                  roomId={room.roomId}
+                  currentUserId={oduserId}
+                  currentUsername={user?.username || 'Anónimo'}
+                />
+              </div>
             </div>
           )}
 
           {/* Conectando */}
           {!isJoinByCode && state === 'connecting' && (
-            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center">
+            <div className="bg-card border-4 border-secondary/30 rounded-lg p-8 text-center max-w-2xl mx-auto">
               <Loader2 className="w-16 h-16 mx-auto mb-4 text-primary animate-spin" />
               <h3 className="text-2xl font-black text-foreground">CONECTANDO AL SERVIDOR</h3>
               <p className="text-muted-foreground">Por favor espera...</p>
@@ -340,7 +358,7 @@ export default function WaitingRoomPage() {
 
           {/* Error */}
           {state === 'error' && (
-            <div className="bg-card border-4 border-destructive/30 rounded-lg p-8 text-center">
+            <div className="bg-card border-4 border-destructive/30 rounded-lg p-8 text-center max-w-2xl mx-auto">
               <X className="w-16 h-16 mx-auto mb-4 text-destructive" />
               <h3 className="text-2xl font-black text-foreground mb-2">ERROR DE CONEXIÓN</h3>
               <p className="text-muted-foreground mb-4">{error}</p>
